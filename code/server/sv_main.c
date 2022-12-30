@@ -153,6 +153,131 @@ void QDECL SV_LogPrintf( const char *fmt, ... ) {
 
 /*
 ===============
+SV_LoadPositionFromFile
+
+Load the client position from a file
+original code by Fenix
+===============
+*/
+#define GT_JUMP	9
+void SV_LoadPositionFromFile( client_t *cl, char *mapname ) {
+
+	fileHandle_t	file;
+	char		buffer[MAX_SAVED_POSITIONS * MAX_STRING_CHARS];
+	char		*guid, *qpath, *p;
+	int		len, i, j;
+
+	// abort if not in jump mode
+	if (sv_gametype->integer != GT_JUMP) {
+		return;
+	}
+
+	// abort if position save/load or persistent positions are disabled
+	if ((Cvar_VariableIntegerValue("g_allowPosSaving") <= 0) ||
+	    (Cvar_VariableIntegerValue("g_persistentPositions") <= 0)) {
+		return;
+	}
+
+	guid = Info_ValueForKey(cl->userinfo, "cl_guid");
+	if (!guid || !guid[0]) {
+		return;
+	}
+
+	qpath = va("positions_advanced/%s/%s.pos", mapname, guid);
+	FS_FOpenFileByMode(qpath, &file, FS_READ);
+	if (!file) {
+		return;
+	}
+
+	len = FS_Read(buffer, sizeof(buffer), file);
+	if (len <= 0) {
+		return;
+	}
+
+	p = buffer;
+	cl->advancedSaves = *p == 'A'; p += 2; // every pos file starts with a line containing either 'A' or 'N'
+	for (i = 0; i < MAX_SAVED_POSITIONS; i++) {
+		// every line starts with either '1,' or '0,'
+		cl->savedPosition[i].active = *p == '1'; p += 2;
+
+		// copy the tag over char by char
+		for (j = 0; *p != ',' && j < MAX_STRING_CHARS - 1; j++, p++) {
+			cl->savedPosition[i].tag[j] = *p;
+		}
+		p += 1; // for the comma after the tag
+
+		// now read the coordinates
+		sscanf(p, "%f,%f,%f,%f,%f,%f\n%n",
+		       &cl->savedPosition[i].position[0], &cl->savedPosition[i].position[1], &cl->savedPosition[i].position[2],
+		       &cl->savedPosition[i].angle[0], &cl->savedPosition[i].angle[1], &cl->savedPosition[i].angle[2],
+		       &len);
+		p += len;
+	}
+
+	FS_FCloseFile(file);
+}
+
+/*
+===============
+SV_SavePositionToFile
+
+Load the client position to a file
+original code by Fenix
+===============
+*/
+void SV_SavePositionToFile(client_t *cl, char *mapname) {
+
+	fileHandle_t	file;
+	char		buffer[MAX_SAVED_POSITIONS * MAX_STRING_CHARS];
+	char		tmpbuf[MAX_STRING_CHARS];
+	char		*guid, *qpath, *p;
+	int		i, rem, len;
+
+	// abort if not in jump mode
+	if (sv_gametype->integer != GT_JUMP) {
+		return;
+	}
+
+	// abort if position save/load or persistent positions are disabled
+	if ((Cvar_VariableIntegerValue("g_allowPosSaving") <= 0) ||
+	    (Cvar_VariableIntegerValue("g_persistentPositions") <= 0)) {
+		return;
+	}
+
+	guid = Info_ValueForKey(cl->userinfo, "cl_guid");
+	if (!guid || !guid[0]) {
+		return;
+	}
+
+	qpath = va("positions_advanced/%s/%s.pos", mapname, guid);
+	FS_FOpenFileByMode(qpath, &file, FS_WRITE);
+	if (!file) {
+		return;
+	}
+
+	p = buffer;
+	rem = sizeof(buffer);
+
+	// add the A/N line
+	*p = cl->advancedSaves ? 'A' : 'N'; p++; rem--;
+	*p = '\n'; p++; rem--;
+
+	for (i = 0; i < MAX_SAVED_POSITIONS; i++) {
+		// print into temporary buffer to keep track of characters written
+		snprintf(tmpbuf, MAX_STRING_CHARS, "%d,%s,%f,%f,%f,%f,%f,%f\n",
+			 cl->savedPosition[i].active ? 1 : 0,
+			 cl->savedPosition[i].active ? cl->savedPosition[i].tag : "",
+			 cl->savedPosition[i].position[0], cl->savedPosition[i].position[1], cl->savedPosition[i].position[2],
+			 cl->savedPosition[i].angle[0], cl->savedPosition[i].angle[1], cl->savedPosition[i].angle[2]);
+		strncat(p, tmpbuf, rem); p += strlen(tmpbuf); rem -= strlen(tmpbuf);
+	}
+
+	FS_Write(buffer, (int) strlen(buffer), file);
+	FS_FCloseFile(file);
+}
+
+/*
+===============
 SV_GetClientTeam
 
 Retrieve the given client team

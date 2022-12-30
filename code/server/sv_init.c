@@ -606,7 +606,11 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 	int			checksum;
 	qboolean	isBot;
 	char		systemInfo[16384];
+	char		mapname[MAX_QPATH];
 	const char	*p;
+
+	// save the old mapname here because it's nuked later
+	Q_strncpyz(mapname, sv_mapname->string, sizeof(mapname));
 
 	// shut down the existing game if it is running
 	SV_ShutdownGameProgs();
@@ -746,10 +750,16 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 				SV_DropClient( &svs.clients[i], denied );
 			} else {
 				if( !isBot ) {
+					// persist positions
+					SV_SavePositionToFile(&svs.clients[i], mapname);
+
 					// clear the position vectors for nextmap
 					for (j = 0; j < MAX_SAVED_POSITIONS; j++) {
 						svs.clients[i].savedPosition[j].active = qfalse;
 					}
+
+					// load positions for new map
+					SV_SavePositionToFile(&svs.clients[i], sv_mapname->string);
 
 					// when we get the next packet from a connected client,
 					// the new gamestate will be sent

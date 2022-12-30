@@ -437,6 +437,9 @@ gotnewcl:
     // gamestate message was not just sent, forcing a retransmit
     newcl->gamestateMessageNum = -1;
 
+    // load saved positions
+    SV_LoadPositionFromFile( newcl, sv_mapname->string );
+
     // if this was the first client on the server, or the last client
     // the server can hold, send a heartbeat to the master.
     count = 0;
@@ -508,6 +511,9 @@ void SV_DropClient( client_t *drop, const char *reason ) {
 	if ( drop->netchan.remoteAddress.type == NA_BOT ) {
 		SV_BotFreeClient( drop - svs.clients );
 	}
+
+	// persist saved positions
+	SV_SavePositionToFile( drop, sv_mapname->string );
 
 	// nuke user info
 	SV_SetUserinfo( drop - svs.clients, "" );

@@ -345,6 +345,9 @@ int SV_GetClientTeam (int);
 void SV_BroadcastMessageToClient( client_t *cl, const char *fmt, ... );
 void QDECL SV_LogPrintf( const char *fmt, ... );
 
+void SV_SavePositionToFile( client_t *cl, char *mapname );
+void SV_LoadPositionFromFile( client_t *cl, char *mapname );
+
 
 
 //

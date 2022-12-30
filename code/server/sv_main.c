@@ -229,7 +229,6 @@ void SV_SavePositionToFile(client_t *cl, char *mapname) {
 
 	fileHandle_t	file;
 	char		buffer[MAX_SAVED_POSITIONS * MAX_STRING_CHARS];
-	char		tmpbuf[MAX_STRING_CHARS];
 	char		*guid, *qpath, *p;
 	int		i, rem, len;
 
@@ -263,13 +262,12 @@ void SV_SavePositionToFile(client_t *cl, char *mapname) {
 	*p = '\n'; p++; rem--;
 
 	for (i = 0; i < MAX_SAVED_POSITIONS; i++) {
-		// print into temporary buffer to keep track of characters written
-		snprintf(tmpbuf, MAX_STRING_CHARS, "%d,%s,%f,%f,%f,%f,%f,%f\n",
-			 cl->savedPosition[i].active ? 1 : 0,
-			 cl->savedPosition[i].active ? cl->savedPosition[i].tag : "",
-			 cl->savedPosition[i].position[0], cl->savedPosition[i].position[1], cl->savedPosition[i].position[2],
-			 cl->savedPosition[i].angle[0], cl->savedPosition[i].angle[1], cl->savedPosition[i].angle[2]);
-		strncat(p, tmpbuf, rem); p += strlen(tmpbuf); rem -= strlen(tmpbuf);
+		len = snprintf(p, MAX_STRING_CHARS, "%d,%s,%f,%f,%f,%f,%f,%f\n",
+			       cl->savedPosition[i].active ? 1 : 0,
+			       cl->savedPosition[i].active ? cl->savedPosition[i].tag : "",
+			       cl->savedPosition[i].position[0], cl->savedPosition[i].position[1], cl->savedPosition[i].position[2],
+			       cl->savedPosition[i].angle[0], cl->savedPosition[i].angle[1], cl->savedPosition[i].angle[2]);
+		p += len; rem -= len;
 	}
 
 	FS_Write(buffer, (int) strlen(buffer), file);

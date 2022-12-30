@@ -746,6 +746,9 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 				SV_DropClient( &svs.clients[i], denied );
 			} else {
 				if( !isBot ) {
+					// clear the position vector for nextmap
+					VectorClear(svs.clients[i].savedPosition);
+
 					// when we get the next packet from a connected client,
 					// the new gamestate will be sent
 					svs.clients[i].state = CS_CONNECTED;

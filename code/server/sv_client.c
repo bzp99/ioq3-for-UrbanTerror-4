@@ -835,6 +835,139 @@ void SV_BeginDownload_f( client_t *cl ) {
 
 /*
 ==================
+SV_SavePosition_f
+
+Original code by Fenix
+==================
+*/
+#define GT_JUMP 9
+void SV_SavePosition_f( client_t *cl ) {
+
+	int		cid;
+	playerState_t	*ps;
+
+	// abort if not in jump mode
+	if (sv_gametype->integer != GT_JUMP) {
+		return;
+	}
+
+	// get the client slot
+	cid = (int) (cl - svs.clients);
+
+	// abort if client is in spectator mode
+	if (SV_GetClientTeam(cid) == TEAM_SPECTATOR) {
+		return;
+	}
+
+	// abort if server doesn't allow position save/load
+	if (Cvar_VariableIntegerValue("g_allowPosSaving") < 1) {
+		return;
+	}
+
+	// get the client playerState_t
+	ps = SV_GameClientNum(cid);
+
+	// abort if client is dead
+	if (ps->pm_type != PM_NORMAL) {
+		SV_BroadcastMessageToClient(cl, "You must be ^1alive ^7and ^1in-game ^7to save your position");
+		return;
+	}
+
+	// save position and angle
+	VectorCopy(ps->origin, cl->savedPosition);
+	VectorCopy(ps->viewangles, cl->savedPositionAngle);
+
+	// log command execution
+	SV_LogPrintf("ClientSavePosition: %d:(%f,%f,%f)\n",
+		     cid,
+		     cl->savedPosition[0], cl->savedPosition[1], cl->savedPosition[2]);
+	SV_BroadcastMessageToClient(cl, "Position ^6saved");
+}
+
+/*
+==================
+SV_LoadPosition_f
+
+Original code by Fenix
+==================
+*/
+static void SV_LoadPosition_f( client_t *cl ) {
+
+	int		i, cid, angle;
+	qboolean	run;
+	playerState_t	*ps;
+	sharedEntity_t	*ent;
+
+	// abort if not in jump mode
+	if (sv_gametype->integer != GT_JUMP) {
+		return;
+	}
+
+	// get the client slot and ready state
+	cid = (int) (cl - svs.clients);
+	run = cl->ready;
+
+	// abort if client is in spectator mode
+	if (SV_GetClientTeam(cid) == TEAM_SPECTATOR) {
+		return;
+	}
+
+	// abort if server doesn't allow position save/load
+	if (Cvar_VariableIntegerValue("g_allowPosSaving") < 1) {
+		return;
+	}
+
+	ent = SV_GentityNum(cid);
+	ps = SV_GameClientNum(cid);
+
+	// abort if there is no position to load
+	if (!cl->savedPosition[0] || !cl->savedPosition[1] || !cl->savedPosition[2]) {
+		SV_BroadcastMessageToClient(cl, "^1No position ^7to load");
+		return;
+	}
+
+	// abort if client is dead
+	if (ps->pm_type != PM_NORMAL) {
+		SV_BroadcastMessageToClient(cl, "^1Cannot ^7load position while ^1dead");
+		return;
+	}
+
+	if (run) {
+		SV_BroadcastMessageToClient(cl, "You cannot load while doing a run; ^1aborting run");
+		// stop the timers
+		Cmd_TokenizeString("ready");
+		VM_Call(gvm, GAME_CLIENT_COMMAND, cl - svs.clients);
+	}
+
+	// apply saved position
+	VectorCopy(cl->savedPosition, ps->origin);
+
+	// apply saved angle
+	for (i = 0; i < 3; i++) {
+		angle = ANGLE2SHORT(cl->savedPositionAngle[i]);
+		ps->delta_angles[i] = angle - cl->lastUsercmd.angles[i];
+	}
+	VectorCopy(cl->savedPositionAngle, ent->s.angles);
+	VectorCopy(ent->s.angles, ps->viewangles);
+
+	// clear client velocity
+	VectorClear(ps->velocity);
+
+	if (run) {
+		// restore ready status
+		Cmd_TokenizeString("ready");
+		VM_Call(gvm, GAME_CLIENT_COMMAND, cl - svs.clients);
+	}
+
+	// log command execution
+	SV_LogPrintf("ClientLoadPosition: %d:(%f,%f,%f)\n",
+		     cid,
+		     cl->savedPosition[0], cl->savedPosition[1], cl->savedPosition[2]);
+	SV_BroadcastMessageToClient(cl, "Position ^2loaded");
+}
+
+/*
+==================
 SV_WriteDownloadToClient
 
 Check to see if the client wants a file, open it if needed and start pumping the client
@@ -1359,6 +1492,8 @@ static ucmd_t ucmds[] = {
 	{"nextdl", SV_NextDownload_f},
 	{"stopdl", SV_StopDownload_f},
 	{"donedl", SV_DoneDownload_f},
+	{"save", SV_SavePosition_f},
+	{"load", SV_LoadPosition_f},
 
 	{NULL, NULL}
 };

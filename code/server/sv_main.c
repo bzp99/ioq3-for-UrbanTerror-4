@@ -72,6 +72,103 @@ cvar_t  *sv_auth_engine;
 /*
 =============================================================================
 
+FUNCTIONS PORTED FROM FENIX'S CODE
+
+=============================================================================
+*/
+
+/*
+===============
+SV_BroadcastMessageToClient
+
+Send a server message to a specific client
+original code by Fenix
+===============
+*/
+void SV_BroadcastMessageToClient( client_t *cl, const char *fmt, ... ) {
+
+	char	str[MAX_STRING_CHARS];
+	va_list	ap;
+
+	va_start(ap, fmt);
+	vsprintf(str, fmt, ap);
+	va_end(ap);
+
+	SV_SendServerCommand(cl, "print \"%s\"", str);
+}
+
+/*
+===============
+SV_LogPrintf
+
+Print in the log file
+original code by Fenix
+===============
+*/
+void QDECL SV_LogPrintf( const char *fmt, ... ) {
+
+	va_list		argptr;
+	fileHandle_t	file;
+	fsMode_t	mode;
+	char		*logfile;
+	char		buffer[MAX_STRING_CHARS];
+	int		min, tens, sec;
+	int		logsync;
+
+	// retrieve logfile name
+	logfile = Cvar_VariableString("g_log");
+	if (!logfile[0]) {
+		return;
+	}
+
+	// retrieve writing mode
+	logsync = Cvar_VariableIntegerValue("g_logSync");
+	mode = logsync ? FS_APPEND_SYNC : FS_APPEND;
+
+	// open log file
+	FS_FOpenFileByMode(logfile, &file, mode);
+	if (!file) {
+		return;
+	}
+
+	// get current level time
+	sec  = sv.time / 1000;
+	min  = sec / 60;
+	sec -= min * 60;
+	tens = sec / 10;
+	sec -= tens * 10;
+
+	// prepend current level time
+	Com_sprintf(buffer, sizeof(buffer), "%3i:%i%i ", min, tens, sec);
+
+	// get the arguments
+	va_start(argptr, fmt);
+	vsprintf(buffer + 7, fmt, argptr);
+	va_end(argptr);
+
+	// write the log
+	FS_Write(buffer, (int) strlen(buffer), file);
+	FS_FCloseFile(file);
+}
+
+/*
+===============
+SV_GetClientTeam
+
+Retrieve the given client team
+code by Fenix
+===============
+*/
+int SV_GetClientTeam( int slot ) {
+
+	playerState_t *ps = SV_GameClientNum(slot);
+	return ps->persistant[PERS_TEAM];
+}
+
+
+/*
+=============================================================================
+
 EVENT MESSAGES
 
 =============================================================================

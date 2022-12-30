@@ -178,6 +178,11 @@ typedef struct client_s {
 	int				oldServerTime;
 	qboolean			csUpdated[MAX_CONFIGSTRINGS+1];	
 	int             numcmds;    // number of client commands so far (in this time period), for sv_floodprotect
+
+	// position saving as formerly implemented by Fenix
+	vec3_t		savedPosition;		// saved position of the client
+	vec3_t		savedPositionAngle;	// direction where client was heading when saving
+	qboolean	ready;			// whether the client is doing a jump run
 } client_t;
 
 //=============================================================================
@@ -327,6 +332,10 @@ void SV_RemoveOperatorCommands (void);
 void SV_MasterHeartbeat (void);
 void SV_MasterShutdown (void);
 
+// ported over from Fenix's code
+int SV_GetClientTeam (int);
+void SV_BroadcastMessageToClient( client_t *cl, const char *fmt, ... );
+void QDECL SV_LogPrintf( const char *fmt, ... );
 
 
 

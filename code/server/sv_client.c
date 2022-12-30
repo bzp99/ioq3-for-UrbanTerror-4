@@ -921,6 +921,11 @@ void SV_SavePosition_f( client_t *cl ) {
 	// set tag if given
 	if (Cmd_Argc() > 1) {
 		Com_sprintf(tag, sizeof(tag), "%s", Cmd_Argv(1));
+		for (i = 0; i < strlen(tag); i++) {
+			if (tag[i] == ',') {
+				tag[i] = '-';
+			}
+		}
 	}
 
 	// try to find a save with this tag
@@ -1004,6 +1009,11 @@ static void SV_LoadPosition_f( client_t *cl ) {
 	// set tag if given
 	if (Cmd_Argc() > 1) {
 		Com_sprintf(tag, sizeof(tag), "%s", Cmd_Argv(1));
+		for (i = 0; i < strlen(tag); i++) {
+			if (tag[i] == ',') {
+				tag[i] = '-';
+			}
+		}
 	}
 
 	// try to find a save with this tag
@@ -1116,6 +1126,11 @@ static void SV_DeletePosition_f( client_t *cl ) {
 	// set tag if given
 	if (Cmd_Argc() > 1) {
 		Com_sprintf(tag, sizeof(tag), "%s", Cmd_Argv(1));
+		for (i = 0; i < strlen(tag); i++) {
+			if (tag[i] == ',') {
+				tag[i] = '-';
+			}
+		}
 	}
 
 	// try to find the save to delete

@@ -602,7 +602,7 @@ This is NOT called for map_restart
 ================
 */
 void SV_SpawnServer( char *server, qboolean killBots ) {
-	int			i;
+	int			i, j;
 	int			checksum;
 	qboolean	isBot;
 	char		systemInfo[16384];
@@ -746,8 +746,10 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 				SV_DropClient( &svs.clients[i], denied );
 			} else {
 				if( !isBot ) {
-					// clear the position vector for nextmap
-					VectorClear(svs.clients[i].savedPosition);
+					// clear the position vectors for nextmap
+					for (j = 0; j < MAX_SAVED_POSITIONS; j++) {
+						svs.clients[i].savedPosition[j].active = qfalse;
+					}
 
 					// when we get the next packet from a connected client,
 					// the new gamestate will be sent

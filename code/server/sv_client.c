@@ -843,8 +843,11 @@ Original code by Fenix
 #define GT_JUMP 9
 void SV_SavePosition_f( client_t *cl ) {
 
-	int		cid;
+	int		i, cid;
+	char		tag[MAX_STRING_CHARS] = "default";
 	playerState_t	*ps;
+	savepos_t	*p;
+
 
 	// abort if not in jump mode
 	if (sv_gametype->integer != GT_JUMP) {
@@ -873,15 +876,43 @@ void SV_SavePosition_f( client_t *cl ) {
 		return;
 	}
 
+	// set tag if given
+	if (Cmd_Argc() > 1) {
+		Com_sprintf(tag, sizeof(tag), "%s", Cmd_Argv(1));
+	}
+
+	// try to find a save with this tag
+	for (i = 0; i < MAX_SAVED_POSITIONS; i++) {
+		if (!strncmp(cl->savedPosition[i].tag, tag, MAX_STRING_CHARS))
+			goto save;
+	}
+
+	// try to find an unused save
+	for (i = 0; i < MAX_SAVED_POSITIONS; i++) {
+		if (!cl->savedPosition[i].active) {
+			goto save;
+		}
+	}
+
+	// failed to find a suitable save slot
+	SV_BroadcastMessageToClient(cl, "You ^1do not have an unused save slot. ^7You can always overwrite your ^5default ^7save.");
+	return;
+
+save:
+	p = &cl->savedPosition[i];
+
 	// save position and angle
-	VectorCopy(ps->origin, cl->savedPosition);
-	VectorCopy(ps->viewangles, cl->savedPositionAngle);
+	VectorCopy(ps->origin, p->position);
+	VectorCopy(ps->viewangles, p->angle);
+	Q_strncpyz(p->tag, tag, sizeof(tag));
+	p->active = qtrue;
 
 	// log command execution
-	SV_LogPrintf("ClientSavePosition: %d:(%f,%f,%f)\n",
+	SV_LogPrintf("ClientSavePosition: (%d)[%s](%f,%f,%f)\n",
 		     cid,
-		     cl->savedPosition[0], cl->savedPosition[1], cl->savedPosition[2]);
-	SV_BroadcastMessageToClient(cl, "Position ^6saved");
+		     p->tag,
+		     p->position[0], p->position[1], p->position[2]);
+	SV_BroadcastMessageToClient(cl, "Position ^5%s ^6saved", p->tag);
 }
 
 /*
@@ -894,9 +925,11 @@ Original code by Fenix
 static void SV_LoadPosition_f( client_t *cl ) {
 
 	int		i, cid, angle;
+	char		tag[MAX_STRING_CHARS] = "default";
 	qboolean	run;
 	playerState_t	*ps;
 	sharedEntity_t	*ent;
+	savepos_t	*p;
 
 	// abort if not in jump mode
 	if (sv_gametype->integer != GT_JUMP) {
@@ -920,18 +953,31 @@ static void SV_LoadPosition_f( client_t *cl ) {
 	ent = SV_GentityNum(cid);
 	ps = SV_GameClientNum(cid);
 
-	// abort if there is no position to load
-	if (!cl->savedPosition[0] || !cl->savedPosition[1] || !cl->savedPosition[2]) {
-		SV_BroadcastMessageToClient(cl, "^1No position ^7to load");
-		return;
-	}
-
 	// abort if client is dead
 	if (ps->pm_type != PM_NORMAL) {
 		SV_BroadcastMessageToClient(cl, "^1Cannot ^7load position while ^1dead");
 		return;
 	}
 
+	// set tag if given
+	if (Cmd_Argc() > 1) {
+		Com_sprintf(tag, sizeof(tag), "%s", Cmd_Argv(1));
+	}
+
+	// try to find a save with this tag
+	for (i = 0; i < MAX_SAVED_POSITIONS; i++) {
+		if (cl->savedPosition[i].active && !strncmp(cl->savedPosition[i].tag, tag, MAX_STRING_CHARS))
+			goto load;
+	}
+
+	// failed to find save slot
+	SV_BroadcastMessageToClient(cl, "^1No save tagged ^5%s^7 found.", tag);
+	return;
+
+load:
+	p = &cl->savedPosition[i];
+
+	// abort run if needed
 	if (run) {
 		SV_BroadcastMessageToClient(cl, "You cannot load while doing a run; ^1aborting run");
 		// stop the timers
@@ -940,14 +986,14 @@ static void SV_LoadPosition_f( client_t *cl ) {
 	}
 
 	// apply saved position
-	VectorCopy(cl->savedPosition, ps->origin);
+	VectorCopy(p->position, ps->origin);
 
 	// apply saved angle
 	for (i = 0; i < 3; i++) {
-		angle = ANGLE2SHORT(cl->savedPositionAngle[i]);
+		angle = ANGLE2SHORT(p->angle[i]);
 		ps->delta_angles[i] = angle - cl->lastUsercmd.angles[i];
 	}
-	VectorCopy(cl->savedPositionAngle, ent->s.angles);
+	VectorCopy(p->angle, ent->s.angles);
 	VectorCopy(ent->s.angles, ps->viewangles);
 
 	// clear client velocity
@@ -960,10 +1006,113 @@ static void SV_LoadPosition_f( client_t *cl ) {
 	}
 
 	// log command execution
-	SV_LogPrintf("ClientLoadPosition: %d:(%f,%f,%f)\n",
+	SV_LogPrintf("ClientLoadPosition: (%d)[%s](%f,%f,%f)\n",
 		     cid,
-		     cl->savedPosition[0], cl->savedPosition[1], cl->savedPosition[2]);
-	SV_BroadcastMessageToClient(cl, "Position ^2loaded");
+		     p->tag,
+		     p->position[0], p->position[1], p->position[2]);
+	SV_BroadcastMessageToClient(cl, "Position ^5%s ^2loaded", tag);
+}
+
+/*
+==================
+SV_ListSaves_f
+==================
+*/
+static void SV_ListSaves_f( client_t *cl ) {
+
+	int		i;
+	qboolean	foundany = qfalse;
+	savepos_t	*p;
+
+	// abort if not in jump mode
+	if (sv_gametype->integer != GT_JUMP) {
+		return;
+	}
+
+	// abort if server doesn't allow position save/load
+	if (Cvar_VariableIntegerValue("g_allowPosSaving") < 1) {
+		return;
+	}
+
+	SV_BroadcastMessageToClient(cl, "^6You have the following saved positions:");
+	for (i = 0; i < MAX_SAVED_POSITIONS; i++) {
+		p = &cl->savedPosition[i];
+		if (p->active) {
+			SV_BroadcastMessageToClient(cl, "* ^5%s ^7at ^3(%f, %f, %f) ^7facing (%f,%f,%f)",
+			                            p->tag,
+			                            p->position[0], p->position[1], p->position[2],
+			                            p->angle[0], p->angle[1], p->angle[2]);
+			foundany = qtrue;
+		}
+	}
+	if (!foundany) {
+		SV_BroadcastMessageToClient(cl, "^1[no saved positions]");
+	}
+}
+
+/*
+==================
+SV_DeletePosition_f
+==================
+*/
+static void SV_DeletePosition_f( client_t *cl ) {
+
+	int		i;
+	char		tag[MAX_STRING_CHARS] = "default";
+	savepos_t	*p;
+
+	// abort if not in jump mode
+	if (sv_gametype->integer != GT_JUMP) {
+		return;
+	}
+
+	// abort if server doesn't allow position save/load
+	if (Cvar_VariableIntegerValue("g_allowPosSaving") < 1) {
+		return;
+	}
+
+	// set tag if given
+	if (Cmd_Argc() > 1) {
+		Com_sprintf(tag, sizeof(tag), "%s", Cmd_Argv(1));
+	}
+
+	// try to find the save to delete
+	for (i = 0; i < MAX_SAVED_POSITIONS; i++) {
+		p = &cl->savedPosition[i];
+		if (p->active && !strncmp(p->tag, tag, MAX_STRING_CHARS)) {
+			p->active = qfalse;
+			SV_BroadcastMessageToClient(cl, "^6Deleted ^7save ^5%s", tag);
+			return;
+		}
+	}
+
+	SV_BroadcastMessageToClient(cl, "^1Could not find save ^5%s", tag);
+}
+
+/*
+==================
+SV_ClearPositions_f
+==================
+*/
+static void SV_ClearPositions_f( client_t *cl ) {
+
+	int		i;
+
+	// abort if not in jump mode
+	if (sv_gametype->integer != GT_JUMP) {
+		return;
+	}
+
+	// abort if server doesn't allow position save/load
+	if (Cvar_VariableIntegerValue("g_allowPosSaving") < 1) {
+		return;
+	}
+
+	for (i = 0; i < MAX_SAVED_POSITIONS; i++) {
+		cl->savedPosition[i].active = qfalse;
+	}
+
+	SV_BroadcastMessageToClient(cl, "All saved positions ^2cleared");
 }
 
 /*
@@ -1494,6 +1643,9 @@ static ucmd_t ucmds[] = {
 	{"donedl", SV_DoneDownload_f},
 	{"save", SV_SavePosition_f},
 	{"load", SV_LoadPosition_f},
+	{"saves", SV_ListSaves_f},
+	{"delete", SV_DeletePosition_f},
+	{"clearsaves", SV_ClearPositions_f},
 
 	{NULL, NULL}
 };

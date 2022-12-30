@@ -113,6 +113,15 @@ typedef struct netchan_buffer_s {
 	struct netchan_buffer_s *next;
 } netchan_buffer_t;
 
+
+typedef struct savepos_s {
+	vec3_t		position;
+	vec3_t		angle;
+	char		tag[MAX_STRING_CHARS];
+	qboolean	active;
+} savepos_t;
+
+#define MAX_SAVED_POSITIONS	30
 typedef struct client_s {
 	clientState_t	state;
 	char			userinfo[MAX_INFO_STRING];		// name, etc
@@ -179,10 +188,8 @@ typedef struct client_s {
 	qboolean			csUpdated[MAX_CONFIGSTRINGS+1];	
 	int             numcmds;    // number of client commands so far (in this time period), for sv_floodprotect
 
-	// position saving as formerly implemented by Fenix
-	vec3_t		savedPosition;		// saved position of the client
-	vec3_t		savedPositionAngle;	// direction where client was heading when saving
-	qboolean	ready;			// whether the client is doing a jump run
+	savepos_t	savedPosition[MAX_SAVED_POSITIONS];	// saved positions of the client
+	qboolean	ready;					// whether the client is doing a jump run
 } client_t;
 
 //=============================================================================

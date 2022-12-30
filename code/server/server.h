@@ -188,6 +188,7 @@ typedef struct client_s {
 	qboolean			csUpdated[MAX_CONFIGSTRINGS+1];	
 	int             numcmds;    // number of client commands so far (in this time period), for sv_floodprotect
 
+	qboolean	advancedSaves;				// whether client opts to use advanced saving capabilities
 	savepos_t	savedPosition[MAX_SAVED_POSITIONS];	// saved positions of the client
 	qboolean	ready;					// whether the client is doing a jump run
 } client_t;

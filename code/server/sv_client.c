@@ -835,12 +835,54 @@ void SV_BeginDownload_f( client_t *cl ) {
 
 /*
 ==================
+SV_EnableAdvancedSaves_f
+==================
+*/
+#define GT_JUMP 9
+void SV_EnableAdvancedSaves_f( client_t *cl ) {
+
+	// abort if not in jump mode
+	if (sv_gametype->integer != GT_JUMP) {
+		return;
+	}
+
+	// abort if server doesn't allow position save/load
+	if (Cvar_VariableIntegerValue("g_allowPosSaving") < 1) {
+		return;
+	}
+
+	cl->advancedSaves = qtrue;
+	SV_BroadcastMessageToClient(cl, "^2You have enabled advanced saving functionality. ^7Try ^6/save ^5<tag>^7, ^6/load ^5<tag>^7, ^6/saves^7, ^6/delete ^5<tag>^7, and ^6/clearsaves^7!");
+}
+
+/*
+==================
+SV_DisableAdvancedSaves_f
+==================
+*/
+void SV_DisableAdvancedSaves_f( client_t *cl ) {
+
+	// abort if not in jump mode
+	if (sv_gametype->integer != GT_JUMP) {
+		return;
+	}
+
+	// abort if server doesn't allow position save/load
+	if (Cvar_VariableIntegerValue("g_allowPosSaving") < 1) {
+		return;
+	}
+
+	cl->advancedSaves = qfalse;
+	SV_BroadcastMessageToClient(cl, "You have ^1disabled advanced saving functionality.");
+}
+
+/*
+==================
 SV_SavePosition_f
 
 Original code by Fenix
 ==================
 */
-#define GT_JUMP 9
 void SV_SavePosition_f( client_t *cl ) {
 
 	int		i, cid;
@@ -1641,6 +1683,13 @@ static ucmd_t ucmds[] = {
 	{"nextdl", SV_NextDownload_f},
 	{"stopdl", SV_StopDownload_f},
 	{"donedl", SV_DoneDownload_f},
+	{"enableAdvancedSaves", SV_EnableAdvancedSaves_f},
+	{"disableAdvancedSaves", SV_DisableAdvancedSaves_f},
+
+	{NULL, NULL}
+};
+
+static ucmd_t save_ucmds[] = {
 	{"save", SV_SavePosition_f},
 	{"load", SV_LoadPosition_f},
 	{"saves", SV_ListSaves_f},
@@ -1676,6 +1725,17 @@ void SV_ExecuteClientCommand( client_t *cl, const char *s, qboolean clientOK ) {
 			u->func( cl );
 			bProcessed = qtrue;
 			break;
+		}
+	}
+
+	// also check save ucmds if client opted in
+	if (cl->advancedSaves) {
+		for (u=save_ucmds ; u->name ; u++) {
+			if (!strcmp (Cmd_Argv(0), u->name) ) {
+				u->func( cl );
+				bProcessed = qtrue;
+				break;
+			}
 		}
 	}
 
